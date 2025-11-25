@@ -178,6 +178,17 @@
       margin: 2px 0;
     }
   }
+  
+  #qrOverlay{
+    position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.6);z-index:999;
+  }
+  #qrBox{
+    background:#fff;padding:16px 20px;border-radius:12px;text-align:center;
+    box-shadow:0 0 20px rgba(0,0,0,.4);
+  }
+  #qrBox canvas{width:180px;height:180px;}
+  #qrBox p{margin:8px 0 0;font-size:14px;color:#222;}
 </style>
 </head>
 <body>
@@ -190,11 +201,26 @@
   <button id="resetBtn">Alkuun</button>
 </div>
 
+<div id="qrOverlay">
+  <div id="qrBox">
+    <canvas id="qr"></canvas>
+    <p>ymouse91.github.io/jumpin/</p>
+  </div>
+</div>
+
 <script>
 
-/* ------------------------------------------------------------
-   JSON NORMALISOINTI: vanha + uusi tukee
------------------------------------------------------------- */
+/* Hae CSS-muuttujat dynaamisesti */
+function getGridDimensions() {
+  const style = getComputedStyle(document.documentElement);
+  const cellStr = style.getPropertyValue('--cell').trim();
+  const cell = parseFloat(cellStr);
+  const gap = parseFloat(style.getPropertyValue('--gap').trim());
+  const pad = parseFloat(style.getPropertyValue('--padding').trim());
+  return { cell, gap, pad };
+}
+
+/* JSON NORMALISOINTI */
 function normalizePuzzleJSON(data){
   if (Array.isArray(data) && Array.isArray(data[0]) && Array.isArray(data[0][0])) {
     return data.map((g,i)=>({ name:"Pulma "+(i+1), grid:g }));
@@ -205,9 +231,7 @@ function normalizePuzzleJSON(data){
   throw new Error("JSON ei kelpaa");
 }
 
-/* ------------------------------------------------------------
-   STATE
------------------------------------------------------------- */
+/* STATE */
 let PUZZLES = [];
 let currentIndex = 0;
 let puzzle;
@@ -219,9 +243,7 @@ let selectedFox    = null;
 let dragFox = null;
 let dragEl  = null;
 
-/* ------------------------------------------------------------
-   LATAA PULMAT
------------------------------------------------------------- */
+/* LATAA PULMAT */
 async function loadPuzzleFile(){
   const res = await fetch("jumpin_puzzles.json");
   const raw = await res.json();
@@ -231,9 +253,7 @@ async function loadPuzzleFile(){
   loadCurrentPuzzle();
 }
 
-/* ------------------------------------------------------------
-   Lataa yksi pulma
------------------------------------------------------------- */
+/* Lataa yksi pulma */
 function loadCurrentPuzzle(){
   const p = PUZZLES[currentIndex];
   puzzle = p.grid.map(row => row.join(""));
@@ -241,18 +261,14 @@ function loadCurrentPuzzle(){
   resetBoard();
 }
 
-/* ------------------------------------------------------------
-   Pulma X / N — Nimi
------------------------------------------------------------- */
+/* Pulma X / N – Nimi */
 function updatePuzzleLabel(){
   let t = `Pulma ${currentIndex+1} / ${PUZZLES.length}`;
-  if (PUZZLES[currentIndex].name) t += " — " + PUZZLES[currentIndex].name;
+  if (PUZZLES[currentIndex].name) t += " – " + PUZZLES[currentIndex].name;
   document.getElementById("puzzleLabel").textContent = t;
 }
 
-/* ------------------------------------------------------------
-   PARSE
------------------------------------------------------------- */
+/* PARSE */
 function parsePuzzle(lines){
   const raw = lines.map(r=>r.split(""));
   const out = [...Array(5)].map(()=>Array(5).fill(null));
@@ -287,17 +303,13 @@ function parsePuzzle(lines){
   return out;
 }
 
-/* ------------------------------------------------------------
-   RESET
------------------------------------------------------------- */
+/* RESET */
 function resetBoard(){
   board = parsePuzzle(puzzle);
   render();
 }
 
-/* ------------------------------------------------------------
-   RENDER (alkuperäinen ulkoasu)
------------------------------------------------------------- */
+/* RENDER */
 function render(){
   const el=document.getElementById("board");
   el.innerHTML="";
@@ -364,7 +376,7 @@ function render(){
       fx.classList.add("selected");
     }
 
-    const cell=72, gap=4, pad=12;
+    const { cell, gap, pad } = getGridDimensions();
     fx.style.left = (pad + minX*(cell+gap))+"px";
     fx.style.top  = (pad + minY*(cell+gap))+"px";
 
@@ -381,9 +393,7 @@ function render(){
   }
 }
 
-/* ------------------------------------------------------------
-   FOX DRAG – pehmeä liuku
------------------------------------------------------------- */
+/* FOX DRAG */
 function foxPointerDown(e,id,minX,minY,dir){
   selectedRabbit = null;
   selectedFox    = id;
@@ -400,8 +410,6 @@ function foxPointerDown(e,id,minX,minY,dir){
 
   document.body.onpointermove = foxPointerMove;
   document.body.onpointerup   = foxPointerUp;
-
-  /* 🔥 Tämä poistettiin → drag toimii taas */
 }
 
 function foxPointerMove(e){
@@ -416,9 +424,7 @@ function foxPointerMove(e){
   }
 }
 
-/* ------------------------------------------------------------
-   POINTER-UP → Liikkuva animaatio + looginen siirto
------------------------------------------------------------- */
+/* POINTER-UP */
 function foxPointerUp(e){
   if (!dragFox) return;
 
@@ -426,7 +432,7 @@ function foxPointerUp(e){
 
   const dx=e.clientX-dragFox.pointerStartX;
   const dy=e.clientY-dragFox.pointerStartY;
-  const cell=72;
+  const { cell } = getGridDimensions();
 
   let steps = dragFox.dir==="h"
     ? Math.round(dx/cell)
@@ -440,13 +446,10 @@ function foxPointerUp(e){
   document.body.onpointermove=null;
   document.body.onpointerup=null;
 
-  /* 🔥 Tämä varmistaa, että liuku näkyy ennen renderöintiä */
   setTimeout(render, 0);
 }
 
-/* ------------------------------------------------------------
-   MOVE FOX
------------------------------------------------------------- */
+/* MOVE FOX */
 function moveFoxSteps(f,steps){
   if (steps===0) return;
   const abs=Math.abs(steps);
@@ -502,9 +505,7 @@ function moveFoxOne(id,dir,forward){
   return true;
 }
 
-/* ------------------------------------------------------------
-   CLICK RABBIT + MOVE
------------------------------------------------------------- */
+/* CLICK RABBIT + MOVE */
 function clickCell(x,y){
   selectedFox=null;
 
@@ -554,9 +555,7 @@ function rabbitMove(sx,sy,tx,ty){
   }
 }
 
-/* ------------------------------------------------------------
-   WIN
------------------------------------------------------------- */
+/* WIN */
 function checkWin(){
   let total=0, inHole=0;
   for(let y=0;y<5;y++){
@@ -572,9 +571,7 @@ function checkWin(){
     setTimeout(()=>alert("🎉 Pulma ratkaistu!"),100);
 }
 
-/* ------------------------------------------------------------
-   NAPIT
------------------------------------------------------------- */
+/* NAPIT */
 document.getElementById("prevBtn").onclick=function(){
   if(currentIndex>0){
     currentIndex--;
@@ -591,9 +588,7 @@ document.getElementById("nextBtn").onclick=function(){
 
 document.getElementById("resetBtn").onclick=resetBoard;
 
-/* ------------------------------------------------------------
-   INIT
------------------------------------------------------------- */
+/* SERVICE WORKER */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
@@ -602,41 +597,24 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+/* QR KOODI */
+const title = document.getElementById("title");
+const overlay = document.getElementById("qrOverlay");
+title.addEventListener('click', ()=>overlay.style.display='flex');
+overlay.addEventListener('click', ()=>overlay.style.display='none');
+
+/* INIT */
 loadPuzzleFile();
 
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-<style>
-  #qrOverlay{
-    position:fixed;inset:0;display:none;align-items:center;justify-content:center;
-    background:rgba(0,0,0,.6);z-index:999;
-  }
-  #qrBox{
-    background:#fff;padding:16px 20px;border-radius:12px;text-align:center;
-    box-shadow:0 0 20px rgba(0,0,0,.4);
-  }
-  #qrBox canvas{width:180px;height:180px;}
-  #qrBox p{margin:8px 0 0;font-size:14px;color:#222;}
-</style>
-
-<div id="qrOverlay">
-  <div id="qrBox">
-    <canvas id="qr"></canvas>
-    <p>ymouse91.github.io/jumpin/</p>
-  </div>
-</div>
-
 <script>
 const qr = new QRious({
   element: document.getElementById('qr'),
   value: 'https://ymouse91.github.io/jumpin/',
   size: 180
 });
-const overlay = document.getElementById('qrOverlay');
-const title = document.getElementById('title');
-title.addEventListener('click', ()=>overlay.style.display='flex');
-overlay.addEventListener('click', ()=>overlay.style.display='none');
 </script>
 
 </body>
