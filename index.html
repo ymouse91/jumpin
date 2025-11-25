@@ -212,11 +212,15 @@
 
 /* Hae CSS-muuttujat dynaamisesti */
 function getGridDimensions() {
+  const boardEl = document.getElementById("board");
+  const boardWidth = boardEl.offsetWidth;
   const style = getComputedStyle(document.documentElement);
-  const cellStr = style.getPropertyValue('--cell').trim();
-  const cell = parseFloat(cellStr);
   const gap = parseFloat(style.getPropertyValue('--gap').trim());
   const pad = parseFloat(style.getPropertyValue('--padding').trim());
+  
+  // (boardWidth - 2*pad - 4*gap) / 5 = cell
+  const cell = (boardWidth - 2*pad - 4*gap) / 5;
+  
   return { cell, gap, pad };
 }
 
@@ -377,6 +381,7 @@ function render(){
     }
 
     const { cell, gap, pad } = getGridDimensions();
+    const boardRect = el.getBoundingClientRect();
     fx.style.left = (pad + minX*(cell+gap))+"px";
     fx.style.top  = (pad + minY*(cell+gap))+"px";
 
