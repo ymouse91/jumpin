@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kaninkolo-v3';
+const CACHE_NAME = 'kaninkolo-v4';
 const FILES_TO_CACHE = [
   './',
   './index.html',
