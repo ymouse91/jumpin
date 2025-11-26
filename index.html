@@ -138,22 +138,34 @@
     flex-wrap: wrap;
     justify-content: center;
     width: 100%;
+    align-items: center;
   }
   
-  button {
+  select, button {
     padding: 8px 16px;
     font-size: clamp(14px, 4vw, 16px);
     border-radius: 8px;
     border: none;
     background: #3b8b3f;
     color: #fff;
-    flex: 1;
-    min-width: 80px;
-    max-width: 120px;
     touch-action: manipulation;
   }
   
-  button:active {
+  select {
+    flex: 1;
+    min-width: 120px;
+    max-width: 180px;
+    cursor: pointer;
+  }
+  
+  button {
+    flex: 1;
+    min-width: 100px;
+    max-width: 140px;
+    cursor: pointer;
+  }
+  
+  button:active, select:active {
     opacity: 0.8;
   }
   
@@ -196,8 +208,12 @@
 <div id="puzzleLabel"></div>
 <div id="board"></div>
 <div class="button-container">
-  <button id="prevBtn">Edellinen</button>
-  <button id="nextBtn">Seuraava</button>
+  <select id="categorySelect">
+    <option value="easy">Helppo (1-20)</option>
+    <option value="normal">Tavallinen (21-40)</option>
+    <option value="hard">Vaikea (41-60)</option>
+  </select>
+  <button id="randomBtn">Satunnainen</button>
   <button id="resetBtn">Alkuun</button>
 </div>
 
@@ -218,7 +234,6 @@ function getGridDimensions() {
   const gap = parseFloat(style.getPropertyValue('--gap').trim());
   const pad = parseFloat(style.getPropertyValue('--padding').trim());
   
-  // (boardWidth - 2*pad - 4*gap) / 5 = cell
   const cell = (boardWidth - 2*pad - 4*gap) / 5;
   
   return { cell, gap, pad };
@@ -237,7 +252,7 @@ function normalizePuzzleJSON(data){
 
 /* STATE */
 let PUZZLES = [];
-let currentIndex = 0;
+let currentPuzzleData = null;
 let puzzle;
 let board;
 
@@ -247,28 +262,77 @@ let selectedFox    = null;
 let dragFox = null;
 let dragEl  = null;
 
+/* KATEGORIAT */
+const CATEGORIES = {
+  easy: { min: 0, max: 19 },
+  normal: { min: 20, max: 39 },
+  hard: { min: 40, max: 59 }
+};
+
+const CATEGORY_NAMES = {
+  easy: "Helppo",
+  normal: "Tavallinen",
+  hard: "Vaikea"
+};
+
+/* KIERRÄ PULMA */
+function rotatePuzzle(grid, rotations) {
+  let current = grid.map(row => [...row]);
+  
+  for (let r = 0; r < rotations; r++) {
+    const rotated = [];
+    for (let x = 0; x < 5; x++) {
+      const newRow = [];
+      for (let y = 4; y >= 0; y--) {
+        newRow.push(current[y][x]);
+      }
+      rotated.push(newRow);
+    }
+    current = rotated;
+  }
+  
+  return current;
+}
+
 /* LATAA PULMAT */
 async function loadPuzzleFile(){
   const res = await fetch("jumpin_puzzles.json");
   const raw = await res.json();
   PUZZLES = normalizePuzzleJSON(raw);
-
-  currentIndex = 0;
-  loadCurrentPuzzle();
+  
+  loadRandomPuzzle();
 }
 
-/* Lataa yksi pulma */
-function loadCurrentPuzzle(){
-  const p = PUZZLES[currentIndex];
-  puzzle = p.grid.map(row => row.join(""));
+/* LATAA SATUNNAINEN PULMA */
+function loadRandomPuzzle(){
+  const category = document.getElementById("categorySelect").value;
+  const range = CATEGORIES[category];
+  const puzzleIndex = range.min + Math.floor(Math.random() * (range.max - range.min + 1));
+  const rotation = Math.floor(Math.random() * 8);
+  
+  loadPuzzleByIndex(puzzleIndex, rotation);
+}
+
+/* Lataa pulma indeksillä ja rotaatiolla */
+function loadPuzzleByIndex(index, rotation){
+  const p = PUZZLES[index];
+  let grid = p.grid;
+  
+  if (rotation > 0) {
+    grid = rotatePuzzle(grid, rotation);
+  }
+  
+  puzzle = grid.map(row => row.join(""));
+  currentPuzzleData = { index, rotation, category: CATEGORY_NAMES[document.getElementById("categorySelect").value] };
+  
   updatePuzzleLabel();
   resetBoard();
 }
 
-/* Pulma X / N – Nimi */
+/* Pulmateksti */
 function updatePuzzleLabel(){
-  let t = `Pulma ${currentIndex+1} / ${PUZZLES.length}`;
-  if (PUZZLES[currentIndex].name) t += " – " + PUZZLES[currentIndex].name;
+  let rotationText = currentPuzzleData.rotation > 0 ? ` (${currentPuzzleData.rotation * 45}°)` : "";
+  let t = `Pulma ${currentPuzzleData.index+1}${rotationText} - ${PUZZLES[currentPuzzleData.index].name}`;
   document.getElementById("puzzleLabel").textContent = t;
 }
 
@@ -400,8 +464,13 @@ function render(){
 
 /* FOX DRAG */
 function foxPointerDown(e,id,minX,minY,dir){
+  e.stopPropagation();
+  
   selectedRabbit = null;
-  selectedFox    = id;
+  if (selectedFox) {
+    document.querySelectorAll('.fox.selected').forEach(el => el.classList.remove('selected'));
+  }
+  selectedFox = id;
 
   dragFox = {id,minX,minY,dir};
   dragEl  = e.target;
@@ -433,7 +502,13 @@ function foxPointerMove(e){
 function foxPointerUp(e){
   if (!dragFox) return;
 
+  // POISTA haamu-pointerkuuntelijat dokumentista
+  document.removeEventListener('pointermove', foxPointerMove, true);
+  document.removeEventListener('pointerup', foxPointerUp, true);
+  document.removeEventListener('pointercancel', foxPointerUp, true);
+
   dragEl.classList.remove("dragging");
+  dragEl.remove();
 
   const dx=e.clientX-dragFox.pointerStartX;
   const dy=e.clientY-dragFox.pointerStartY;
@@ -447,12 +522,13 @@ function foxPointerUp(e){
 
   dragFox=null;
   dragEl=null;
-
-  document.body.onpointermove=null;
-  document.body.onpointerup=null;
+  
+  selectedRabbit = null;
+  selectedFox = null;
 
   render();
 }
+
 
 /* MOVE FOX */
 function moveFoxSteps(f,steps){
@@ -542,8 +618,10 @@ function rabbitMove(sx,sy,tx,ty){
   while(true){
     if(cx<0||cx>4||cy<0||cy>4)return;
 
+    // 🟢 Saavuttiin kohteeseen
     if(cx===tx && cy===ty){
       if(!jumped)return;
+
       board[sy][sx]=null;
 
       if(puzzle[ty][tx]==="h" || puzzle[ty][tx]==="p")
@@ -554,11 +632,23 @@ function rabbitMove(sx,sy,tx,ty){
       return;
     }
 
-    if(!board[cy][cx])return;
-    jumped=true;
-    cx+=dx; cy+=dy;
+    // 🔴 Reikä/keskikolo ilman pupua → ei voi hypätä
+    if ((puzzle[cy][cx] === "h" || puzzle[cy][cx] === "p") &&
+        !(board[cy][cx] && board[cy][cx].type === "rabbit_hole"))
+      return;
+
+    // 🔴 Tyhjä ruutu → ei voi hypätä
+    if (!board[cy][cx]) return;
+
+    // 🟢 Hyppykohde (mushroom / fox / pupu kolossa / pupu)
+    jumped = true;
+
+    cx += dx;
+    cy += dy;
   }
 }
+
+
 
 /* WIN */
 function checkWin(){
@@ -577,20 +667,7 @@ function checkWin(){
 }
 
 /* NAPIT */
-document.getElementById("prevBtn").onclick=function(){
-  if(currentIndex>0){
-    currentIndex--;
-    loadCurrentPuzzle();
-  }
-};
-
-document.getElementById("nextBtn").onclick=function(){
-  if(currentIndex<PUZZLES.length-1){
-    currentIndex++;
-    loadCurrentPuzzle();
-  }
-};
-
+document.getElementById("randomBtn").onclick=loadRandomPuzzle;
 document.getElementById("resetBtn").onclick=resetBoard;
 
 /* SERVICE WORKER */
