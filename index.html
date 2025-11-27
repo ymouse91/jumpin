@@ -294,6 +294,11 @@ function rotatePuzzle(grid, rotations) {
   return current;
 }
 
+/* PEILAA PULMA (pystysuunnassa) */
+function flipPuzzle(grid) {
+  return grid.map(row => [...row].reverse());
+}
+
 /* LATAA PULMAT */
 async function loadPuzzleFile(){
   const res = await fetch("jumpin_puzzles.json");
@@ -308,22 +313,27 @@ function loadRandomPuzzle(){
   const category = document.getElementById("categorySelect").value;
   const range = CATEGORIES[category];
   const puzzleIndex = range.min + Math.floor(Math.random() * (range.max - range.min + 1));
-  const rotation = Math.floor(Math.random() * 8);
+  const rotation = Math.floor(Math.random() * 4);
+  const flip = Math.floor(Math.random() * 2);
   
-  loadPuzzleByIndex(puzzleIndex, rotation);
+  loadPuzzleByIndex(puzzleIndex, rotation, flip);
 }
 
 /* Lataa pulma indeksillä ja rotaatiolla */
-function loadPuzzleByIndex(index, rotation){
+function loadPuzzleByIndex(index, rotation, flip){
   const p = PUZZLES[index];
   let grid = p.grid;
+  
+  if (flip) {
+    grid = flipPuzzle(grid);
+  }
   
   if (rotation > 0) {
     grid = rotatePuzzle(grid, rotation);
   }
   
   puzzle = grid.map(row => row.join(""));
-  currentPuzzleData = { index, rotation, category: CATEGORY_NAMES[document.getElementById("categorySelect").value] };
+  currentPuzzleData = { index, rotation, flip, category: CATEGORY_NAMES[document.getElementById("categorySelect").value] };
   
   updatePuzzleLabel();
   resetBoard();
@@ -331,8 +341,16 @@ function loadPuzzleByIndex(index, rotation){
 
 /* Pulmateksti */
 function updatePuzzleLabel(){
-  let rotationText = currentPuzzleData.rotation > 0 ? ` (${currentPuzzleData.rotation * 45}°)` : "";
-  let t = `Pulma ${currentPuzzleData.index+1}${rotationText} - ${PUZZLES[currentPuzzleData.index].name}`;
+  let info = "";
+  if (currentPuzzleData.flip) {
+    info += "P";
+  }
+  if (currentPuzzleData.rotation > 0) {
+    info += `${currentPuzzleData.rotation * 90}°`;
+  }
+  let infoText = info ? ` (${info})` : "";
+  
+  let t = `Pulma ${currentPuzzleData.index+1}${infoText} - ${PUZZLES[currentPuzzleData.index].name}`;
   document.getElementById("puzzleLabel").textContent = t;
 }
 
@@ -529,7 +547,6 @@ function foxPointerUp(e){
   render();
 }
 
-
 /* MOVE FOX */
 function moveFoxSteps(f,steps){
   if (steps===0) return;
@@ -618,10 +635,8 @@ function rabbitMove(sx,sy,tx,ty){
   while(true){
     if(cx<0||cx>4||cy<0||cy>4)return;
 
-    // 🟢 Saavuttiin kohteeseen
     if(cx===tx && cy===ty){
       if(!jumped)return;
-
       board[sy][sx]=null;
 
       if(puzzle[ty][tx]==="h" || puzzle[ty][tx]==="p")
@@ -631,6 +646,7 @@ function rabbitMove(sx,sy,tx,ty){
 
       return;
     }
+
 
     // 🔴 Reikä/keskikolo ilman pupua → ei voi hypätä
     if ((puzzle[cy][cx] === "h" || puzzle[cy][cx] === "p") &&
@@ -647,8 +663,6 @@ function rabbitMove(sx,sy,tx,ty){
     cy += dy;
   }
 }
-
-
 
 /* WIN */
 function checkWin(){
