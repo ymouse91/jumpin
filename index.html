@@ -683,7 +683,9 @@ function checkWin(){
 /* NAPIT */
 document.getElementById("randomBtn").onclick=loadRandomPuzzle;
 document.getElementById("resetBtn").onclick=resetBoard;
-
+document.getElementById("categorySelect").addEventListener("change", () => {
+  loadRandomPuzzle();
+});
 /* SERVICE WORKER */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
